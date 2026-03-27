@@ -39,6 +39,7 @@ export default function ChatPage() {
     incrementExchange,
     isLoading,
     setLoading,
+    reset,
   } = useArcStore();
 
   // Seed Arc's opening question — wait for persist hydration first
@@ -176,6 +177,14 @@ export default function ChatPage() {
     }
   };
 
+  const handleStartOver = () => {
+    reset();
+    router.push('/');
+  };
+
+  // Check if the last message is an empty assistant message (streaming in progress)
+  const isStreaming = isLoading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].content === '';
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Messages */}
@@ -184,18 +193,35 @@ export default function ChatPage() {
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}
+
+          {/* Typing indicator */}
+          {isLoading && !isStreaming && (
+            <div className="self-start mb-8">
+              <span className="text-text-muted animate-pulse-opacity" style={{ fontSize: '0.9rem' }}>
+                ...
+              </span>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Input area + progress */}
+      {/* Input area + progress + start over */}
       <div
         className="px-6 py-4"
         style={{ borderTop: '1px solid var(--border)' }}
       >
         <div className="mx-auto w-full" style={{ maxWidth: '680px' }}>
           <ChatInput onSend={handleSend} disabled={isLoading} />
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-between items-center mt-2">
+            <button
+              onClick={handleStartOver}
+              className="font-ui text-text-muted hover:text-text-primary transition-colors duration-200"
+              style={{ fontSize: '0.6rem' }}
+            >
+              Start over
+            </button>
             <span
               className="font-ui text-text-muted"
               style={{ fontSize: '0.65rem' }}
