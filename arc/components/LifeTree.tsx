@@ -1,487 +1,597 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import * as d3 from 'd3';
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { LifeTree as LifeTreeType } from '@/lib/types';
-import {
-  HierarchyData,
-  treeToHierarchy,
-  rootsToData,
-  computeVerticalLayout,
-  addJitter,
-  organicBranchPath,
-  getStrokeColour,
-  getStrokeWidth,
-  seededRandom,
-} from '@/lib/tree-layout';
-import TreeNode from './TreeNode';
+import { HierarchyData } from '@/lib/tree-layout';
 
 interface LifeTreeProps {
   tree: LifeTreeType;
   onGrowComplete?: () => void;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/*  Colour palettes                                                    */
+/* ================================================================== */
 
-const SVG_WIDTH = 900;
-const SVG_HEIGHT = 900;
-const TRUNK_BASE_Y = SVG_HEIGHT * 0.88; // Where the trunk starts at the very bottom
-const TRUNK_WIDTH = 10;
+const TREE_COLORS = ['#1a1a1a', '#2C2C2C', '#333333', '#252525', '#2f2f2f'];
+const LEAF_COLORS = ['#355535', '#3D5A3D', '#4a6b4a', '#2d4a2d', '#3D5A3D'];
+const BUD_COLORS = ['#B87030', '#C17F3A', '#D4944A', '#a86828'];
+const ROOT_COLORS = ['#AAAAAA', '#BBBBBB', '#C5C5C5', '#B0B0B0'];
 
-/* Timing (ms) */
-const TRUNK_DELAY = 100;
-const TRUNK_DURATION = 800;
-const BRANCH_START = 900;
-const BRANCH_STAGGER = 120;
-const BRANCH_DURATION = 700;
-const SUBBRANCH_EXTRA_DELAY = 600;
-const LEAF_START = 3200;
-const LEAF_STAGGER = 60;
-const LEAF_DURATION = 500;
-const ROOT_START = 4200;
-const ROOT_DURATION = 600;
-const ROOT_STAGGER = 100;
+function pick(arr: string[]): string {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function nodeColor(type: string): string {
+  if (type === 'leaf') return '#3D5A3D';
+  if (type === 'bud') return '#C17F3A';
+  if (type === 'root') return '#BBBBBB';
+  if (type === 'trunk') return '#2C2C2C';
+  return '#555555';
+}
+
+/* ================================================================== */
+/*  Recursive fractal tree generation (adapted from original)          */
+/* ================================================================== */
+
+interface Terminal {
+  x: number;
+  y: number;
+  angle: number;
+}
+
+function generateRecursiveTree(
+  x: number,
+  y: number,
+  angle: number,
+  length: number,
+  depth: number,
+  targets: Array<{ x: number; y: number }>,
+  terminals: Terminal[],
+) {
+  if (depth === 0) {
+    terminals.push({ x, y, angle });
+    return;
+  }
+
+  const endX = x + Math.cos(angle) * length;
+  const endY = y + Math.sin(angle) * length;
+
+  const steps = Math.max(4, Math.floor(length * 1.5));
+  for (let i = 0; i <= steps; i++) {
+    targets.push({
+      x: x + (endX - x) * (i / steps),
+      y: y + (endY - y) * (i / steps),
+    });
+  }
+
+  const spread = 0.4 + (Math.random() * 0.12 - 0.06);
+  const nextLength = length * (0.68 + Math.random() * 0.1);
+
+  generateRecursiveTree(endX, endY, angle - spread, nextLength, depth - 1, targets, terminals);
+  generateRecursiveTree(endX, endY, angle + spread, nextLength, depth - 1, targets, terminals);
+}
+
+/* ================================================================== */
+/*  Annotation layout                                                  */
+/* ================================================================== */
+
+interface Annotation {
+  treeX: number;
+  treeY: number;
+  labelX: number;
+  labelY: number;
+  side: 'left' | 'right';
+  data: HierarchyData;
+  leaves?: Array<{ content: string; reflection: string }>;
+}
+
+function computeAnnotations(
+  tree: LifeTreeType,
+  terminals: Terminal[],
+  rootAnchors: Array<{ x: number; y: number; data: HierarchyData }>,
+  cx: number,
+  w: number,
+  h: number,
+): Annotation[] {
+  const annotations: Annotation[] = [];
+
+  // Sort terminals by angle for sector assignment
+  const sorted = [...terminals].sort((a, b) => a.angle - b.angle);
+  const items = [
+    ...tree.branches.map((b) => ({
+      data: {
+        id: b.id,
+        label: b.label,
+        description: b.description,
+        type: 'branch' as const,
+        thickness: b.thickness,
+        period: b.period,
+      },
+      leaves: b.leaves.map((l) => ({ content: l.content, reflection: l.reflection })),
+    })),
+    ...tree.buds.map((b) => ({
+      data: {
+        id: b.id,
+        label: b.label,
+        description: b.description,
+        type: 'bud' as const,
+      },
+      leaves: undefined,
+    })),
+  ];
+
+  // Divide terminals into sectors
+  const sectorSize = Math.floor(sorted.length / items.length);
+  items.forEach((item, i) => {
+    const sectorStart = i * sectorSize;
+    const mid = sectorStart + Math.floor(sectorSize / 2);
+    const t = sorted[Math.min(mid, sorted.length - 1)];
+    const side: 'left' | 'right' = t.x < cx ? 'left' : 'right';
+
+    annotations.push({
+      treeX: t.x,
+      treeY: t.y,
+      labelX: 0,
+      labelY: 0,
+      side,
+      data: item.data,
+      leaves: item.leaves,
+    });
+  });
+
+  // Add roots
+  rootAnchors.forEach((r) => {
+    annotations.push({
+      treeX: r.x,
+      treeY: r.y,
+      labelX: 0,
+      labelY: 0,
+      side: r.x < cx ? 'left' : 'right',
+      data: r.data,
+    });
+  });
+
+  // Position labels on left and right sides
+  const leftAnns = annotations.filter((a) => a.side === 'left').sort((a, b) => a.treeY - b.treeY);
+  const rightAnns = annotations.filter((a) => a.side === 'right').sort((a, b) => a.treeY - b.treeY);
+  const margin = 24;
+  const minSpacing = 52;
+
+  function layoutSide(anns: Annotation[], labelX: number) {
+    // Start from the topmost anchor Y and space down
+    if (anns.length === 0) return;
+    const startY = Math.max(40, anns[0].treeY - 20);
+    anns.forEach((ann, i) => {
+      ann.labelX = labelX;
+      ann.labelY = startY + i * minSpacing;
+    });
+  }
+
+  layoutSide(leftAnns, margin);
+  layoutSide(rightAnns, w - margin - 160);
+
+  return annotations;
+}
+
+/* ================================================================== */
+/*  Particle                                                           */
+/* ================================================================== */
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  tx: number;
+  ty: number;
+  size: number;
+  color: string;
+  opacity: number;
+}
+
+function scatter(cx: number, cy: number, w: number, h: number): { x: number; y: number; vx: number; vy: number } {
+  return {
+    x: cx + (Math.random() - 0.5) * w * 0.9,
+    y: cy + (Math.random() - 0.5) * h * 0.7,
+    vx: (Math.random() - 0.5) * 14,
+    vy: (Math.random() - 0.5) * 14,
+  };
+}
+
+/* ================================================================== */
+/*  Component                                                          */
+/* ================================================================== */
+
+const PARTICLE_COUNT = 14000;
+const MAX_DEPTH = 9;
 
 export default function LifeTree({ tree, onGrowComplete }: LifeTreeProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [selectedNode, setSelectedNode] = useState<HierarchyData | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const hasRendered = useRef(false);
+  const animRef = useRef(0);
+  const onCompleteRef = useRef(onGrowComplete);
+  onCompleteRef.current = onGrowComplete;
 
-  const handleNodeClick = useCallback(
-    (event: MouseEvent, data: HierarchyData) => {
-      event.stopPropagation();
-      setTooltipPos({ x: event.clientX, y: event.clientY });
-      setSelectedNode(data);
-    },
-    [],
-  );
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [settled, setSettled] = useState(false);
+  const [selected, setSelected] = useState<Annotation | null>(null);
+  const [dims, setDims] = useState({ w: 900, h: 700 });
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current || hasRendered.current) return;
-    hasRendered.current = true;
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
 
-    const svg = d3
-      .select(svgRef.current)
-      .attr('viewBox', `0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`)
-      .attr('width', '100%')
-      .attr('height', '100%');
+    const dpr = window.devicePixelRatio || 1;
+    const w = container.clientWidth || 900;
+    const h = Math.max(container.clientHeight, 700);
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    ctx.scale(dpr, dpr);
+    setDims({ w, h });
 
-    svg.selectAll('*').remove();
-
-    // Centre the tree in the SVG
-    const cx = SVG_WIDTH / 2;
-    const g = svg.append('g').attr('transform', `translate(${cx}, 0)`);
-
-    // ---- Zoom / Pan ----
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.4, 3])
-      .on('zoom', (event) => {
-        g.attr('transform', `translate(${cx}, 0) ${event.transform}`);
-      });
-    svg.call(zoom);
-
-    // Click on SVG background to dismiss tooltip
-    svg.on('click', () => setSelectedNode(null));
-
-    // ---- Compute layout ----
-    const hierarchyData = treeToHierarchy(tree);
-    const root = computeVerticalLayout(hierarchyData, SVG_WIDTH, SVG_HEIGHT);
-
-    // Add organic jitter
-    addJitter(root.descendants(), 14, 10);
-
-    // The trunk root node position
-    const trunkX = root.x ?? 0;
-    const trunkY = root.y ?? 0;
-
-    // ---- Layer groups (draw order) ----
-    const rootsG = g.append('g').attr('class', 'roots');
-    const trunkG = g.append('g').attr('class', 'trunk');
-    const branchesG = g.append('g').attr('class', 'branches');
-    const nodesG = g.append('g').attr('class', 'nodes');
-
-    // ==================================================================
-    //  1. TRUNK — tapered filled shape that grows upward from the base
-    // ==================================================================
-    {
-      const trunkBaseBotY = TRUNK_BASE_Y;
-      const baseHalfW = TRUNK_WIDTH;
-      const topHalfW = TRUNK_WIDTH * 0.45;
-
-      // Slight organic wobble for hand-drawn feel
-      const wobble1 = seededRandom(tree.trunk.id, 10) * 4;
-      const wobble2 = seededRandom(tree.trunk.id, 11) * 3;
-      const midY = (trunkBaseBotY + trunkY) / 2;
-
-      // Centre-line stroke with dasharray for growth animation
-      const trunkLine = trunkG
-        .append('path')
-        .attr(
-          'd',
-          `M${trunkX},${trunkBaseBotY} C${trunkX + wobble1 * 0.5},${midY} ${trunkX + wobble2 * 0.3},${trunkY + 40} ${trunkX},${trunkY}`,
-        )
-        .attr('fill', 'none')
-        .attr('stroke', '#2C2C2C')
-        .attr('stroke-width', TRUNK_WIDTH * 1.8)
-        .attr('stroke-linecap', 'round');
-
-      const trunkLen = (trunkLine.node() as SVGPathElement).getTotalLength();
-      trunkLine
-        .attr('stroke-dasharray', trunkLen)
-        .attr('stroke-dashoffset', trunkLen)
-        .transition()
-        .delay(TRUNK_DELAY)
-        .duration(TRUNK_DURATION)
-        .ease(d3.easeCubicOut)
-        .attr('stroke-dashoffset', 0);
-
-      // Tapered filled shape fades in after the stroke draws,
-      // giving the trunk organic width variation
-      const trunkFill = trunkG
-        .append('path')
-        .attr(
-          'd',
-          [
-            `M${trunkX - baseHalfW},${trunkBaseBotY}`,
-            `C${trunkX - baseHalfW + wobble1},${midY}`,
-            `${trunkX - topHalfW + wobble2},${trunkY + 30}`,
-            `${trunkX},${trunkY}`,
-            `C${trunkX + topHalfW - wobble2},${trunkY + 30}`,
-            `${trunkX + baseHalfW - wobble1},${midY}`,
-            `${trunkX + baseHalfW},${trunkBaseBotY}`,
-            'Z',
-          ].join(' '),
-        )
-        .attr('fill', '#2C2C2C')
-        .attr('opacity', 0);
-
-      trunkFill
-        .transition()
-        .delay(TRUNK_DELAY + TRUNK_DURATION * 0.5)
-        .duration(TRUNK_DURATION * 0.6)
-        .ease(d3.easeCubicOut)
-        .attr('opacity', 1);
-
-      // Once the fill is visible, hide the stroke line underneath
-      trunkLine
-        .transition()
-        .delay(TRUNK_DELAY + TRUNK_DURATION)
-        .duration(300)
-        .attr('opacity', 0);
+    // Paper grain texture
+    let bgPattern: CanvasPattern | null = null;
+    const nc = document.createElement('canvas');
+    nc.width = 120;
+    nc.height = 120;
+    const nctx = nc.getContext('2d');
+    if (nctx) {
+      nctx.fillStyle = '#FFFFFF';
+      nctx.fillRect(0, 0, 120, 120);
+      for (let i = 0; i < 1600; i++) {
+        nctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.02})`;
+        nctx.fillRect(Math.random() * 120, Math.random() * 120, 1, 1);
+      }
+      bgPattern = ctx.createPattern(nc, 'repeat');
     }
 
-    // ==================================================================
-    //  2. BRANCHES — cubic bezier curves growing outward from trunk
-    // ==================================================================
-    const links = root.links();
+    // ---- Generate the fractal tree shape ----
+    const cx = w / 2;
+    const baseY = h - 55;
+    const startLength = h * 0.18;
+    const treeTargets: Array<{ x: number; y: number }> = [];
+    const terminals: Terminal[] = [];
 
-    // Sort links by depth so main branches draw before sub-branches
-    links.sort((a, b) => {
-      const da = a.target.depth;
-      const db = b.target.depth;
-      return da - db;
-    });
+    generateRecursiveTree(cx, baseY, -Math.PI / 2, startLength, MAX_DEPTH, treeTargets, terminals);
 
-    // Track timing per depth for stagger
-    const depthCount: Record<number, number> = {};
-
-    links.forEach((link) => {
-      const sourceNode = link.source;
-      const targetNode = link.target;
-
-      const sx = sourceNode.x ?? 0;
-      const sy = sourceNode.y ?? 0;
-      const tx = targetNode.x ?? 0;
-      const ty = targetNode.y ?? 0;
-
-      const depth = targetNode.depth;
-      if (!(depth in depthCount)) depthCount[depth] = 0;
-      const idx = depthCount[depth]++;
-
-      // Generate organic cubic bezier path
-      const pathD = organicBranchPath(sx, sy, tx, ty, targetNode.data.id);
-
-      // Determine colour and width
-      const colour = getStrokeColour(targetNode);
-      const width = getStrokeWidth(targetNode);
-
-      // Tapered width: we approximate taper by setting stroke-width to the
-      // average of source and target, since true SVG taper requires a
-      // <path> fill polygon. For visual effect this is good enough.
-      const sourceWidth = getStrokeWidth(sourceNode);
-      const avgWidth = (sourceWidth + width) / 2;
-      const displayWidth = Math.max(avgWidth, 1.5);
-
-      const path = branchesG
-        .append('path')
-        .attr('d', pathD)
-        .attr('fill', 'none')
-        .attr('stroke', colour)
-        .attr('stroke-width', displayWidth)
-        .attr('stroke-linecap', 'round');
-
-      // Growth animation
-      const totalLength = (path.node() as SVGPathElement).getTotalLength();
-      const delay =
-        depth <= 1
-          ? BRANCH_START + idx * BRANCH_STAGGER
-          : BRANCH_START + SUBBRANCH_EXTRA_DELAY + idx * BRANCH_STAGGER;
-
-      path
-        .attr('stroke-dasharray', totalLength)
-        .attr('stroke-dashoffset', totalLength)
-        .transition()
-        .delay(delay)
-        .duration(BRANCH_DURATION)
-        .ease(d3.easeCubicOut)
-        .attr('stroke-dashoffset', 0);
-    });
-
-    // ==================================================================
-    //  3. NODES — circles at branch tips (leaves, buds, branch points)
-    // ==================================================================
-    const allNodes = root.descendants();
-
-    allNodes.forEach((node, i) => {
-      const x = node.x ?? 0;
-      const y = node.y ?? 0;
-      const { type } = node.data;
-      const depth = node.depth;
-
-      let r: number;
-      let fill: string;
-
-      switch (type) {
-        case 'trunk':
-          r = 0; // Trunk is drawn as the thick line, no circle needed
-          fill = '#2C2C2C';
-          break;
-        case 'leaf':
-          r = 5;
-          fill = '#3D5A3D';
-          break;
-        case 'bud':
-          r = 6;
-          fill = '#C17F3A';
-          break;
-        case 'branch':
-          r = 3;
-          fill = '#555555';
-          break;
-        default:
-          r = 3;
-          fill = '#555555';
+    // Extra trunk density (thick tapered column from base up to first split)
+    const trunkTopY = baseY - startLength;
+    for (let i = 0; i <= 80; i++) {
+      const t = i / 80;
+      const spread = 9 * (1 - t * 0.6);
+      for (let j = 0; j < 4; j++) {
+        treeTargets.push({
+          x: cx + (Math.random() - 0.5) * spread * 2,
+          y: baseY - (baseY - trunkTopY) * t + (Math.random() - 0.5) * 2,
+        });
       }
+    }
 
-      if (r === 0) return; // Skip trunk centre point
+    // ---- Coloured clusters at terminal positions ----
+    // Assign terminals to LifeTree branches/buds
+    const sortedTerminals = [...terminals].sort((a, b) => a.angle - b.angle);
+    const allItems = [...tree.branches, ...tree.buds];
+    const sectorSize = Math.floor(sortedTerminals.length / allItems.length);
 
-      // Timing: leaves and buds appear after branches are drawn
-      const isTerminal = type === 'leaf' || type === 'bud';
-      const delay = isTerminal
-        ? LEAF_START + i * LEAF_STAGGER
-        : BRANCH_START + depth * BRANCH_STAGGER * 2 + 400;
+    const leafTargets: Array<{ x: number; y: number }> = [];
+    const budTargets: Array<{ x: number; y: number }> = [];
 
-      const circle = nodesG
-        .append('circle')
-        .attr('cx', x)
-        .attr('cy', y)
-        .attr('r', 0)
-        .attr('fill', fill)
-        .attr('opacity', type === 'branch' ? 0.7 : 1)
-        .style('cursor', 'pointer')
-        .on('click', (event: MouseEvent) => handleNodeClick(event, node.data));
+    allItems.forEach((item, idx) => {
+      const start = idx * sectorSize;
+      const end = Math.min(start + sectorSize, sortedTerminals.length);
+      const isBud = idx >= tree.branches.length;
 
-      circle
-        .transition()
-        .delay(delay)
-        .duration(LEAF_DURATION)
-        .ease(d3.easeBackOut.overshoot(1.5))
-        .attr('r', r);
-
-      // Add a very subtle glow/pulse to buds
-      if (type === 'bud') {
-        const glowCircle = nodesG
-          .append('circle')
-          .attr('cx', x)
-          .attr('cy', y)
-          .attr('r', 0)
-          .attr('fill', 'none')
-          .attr('stroke', '#C17F3A')
-          .attr('stroke-width', 1)
-          .attr('opacity', 0);
-
-        glowCircle
-          .transition()
-          .delay(delay + LEAF_DURATION)
-          .duration(400)
-          .attr('r', r + 3)
-          .attr('opacity', 0.3)
-          .transition()
-          .duration(1500)
-          .ease(d3.easeSinInOut)
-          .attr('r', r + 6)
-          .attr('opacity', 0)
-          .on('end', function repeatPulse() {
-            d3.select(this)
-              .attr('r', r + 2)
-              .attr('opacity', 0.25)
-              .transition()
-              .duration(2000)
-              .ease(d3.easeSinInOut)
-              .attr('r', r + 8)
-              .attr('opacity', 0)
-              .on('end', repeatPulse);
-          });
-      }
-
-      // Small label for branch nodes (not leaves/buds to avoid clutter)
-      if (type === 'branch' && node.data.label) {
-        const labelText = nodesG
-          .append('text')
-          .attr('x', x)
-          .attr('y', y - r - 6)
-          .attr('text-anchor', 'middle')
-          .attr('fill', '#6B6B6B')
-          .attr('font-size', '9px')
-          .attr('font-family', 'Georgia, serif')
-          .attr('opacity', 0)
-          .text(
-            node.data.label.length > 24
-              ? node.data.label.slice(0, 22) + '\u2026'
-              : node.data.label,
-          )
-          .style('cursor', 'pointer')
-          .on('click', (event: MouseEvent) => handleNodeClick(event, node.data));
-
-        labelText
-          .transition()
-          .delay(delay + 200)
-          .duration(500)
-          .attr('opacity', 0.7);
+      // Pick ~30% of terminals in this sector for coloured clusters
+      for (let i = start; i < end; i++) {
+        if (Math.random() < 0.35) {
+          const t = sortedTerminals[i];
+          const cluster = isBud ? budTargets : leafTargets;
+          for (let j = 0; j < 5; j++) {
+            cluster.push({
+              x: t.x + (Math.random() - 0.5) * 10,
+              y: t.y + (Math.random() - 0.5) * 10,
+            });
+          }
+        }
       }
     });
 
-    // ==================================================================
-    //  4. ROOTS — ethereal lines below the trunk base
-    // ==================================================================
-    const rootsData = rootsToData(tree);
+    // ---- Roots ----
+    const rootTargets: Array<{ x: number; y: number }> = [];
+    const rootAnchors: Array<{ x: number; y: number; data: HierarchyData }> = [];
 
-    rootsData.forEach((rootData, i) => {
-      const count = rootsData.length;
-      // Spread roots in a fan below the trunk
-      const spreadAngle = Math.PI * 0.6; // Total spread
-      const angleStep = count > 1 ? spreadAngle / (count - 1) : 0;
-      const baseAngle = Math.PI / 2 - spreadAngle / 2; // Start angle (pointing down-left)
-      const angle = baseAngle + i * angleStep;
+    tree.roots.forEach((root, ri) => {
+      const count = tree.roots.length;
+      const rSpread = Math.PI * 0.5;
+      const rStep = count > 1 ? rSpread / (count - 1) : 0;
+      const rAngle = Math.PI / 2 - rSpread / 2 + ri * rStep;
+      const rLen = 35 + Math.random() * 30;
+      const endX = cx + Math.cos(rAngle) * rLen;
+      const endY = baseY + Math.sin(rAngle) * rLen * 0.5 + 12;
 
-      const length = 60 + Math.abs(seededRandom(rootData.id, 0)) * 50;
-      const endX = trunkX + length * Math.cos(angle);
-      const endY = TRUNK_BASE_Y + length * Math.sin(angle) * 0.7 + 15;
+      for (let i = 0; i <= 20; i++) {
+        const t = i / 20;
+        rootTargets.push({
+          x: cx + (endX - cx) * t + (Math.random() - 0.5) * 2,
+          y: baseY + (endY - baseY) * t + (Math.random() - 0.5),
+        });
+      }
 
-      // Organic control points
-      const jx = seededRandom(rootData.id, 1) * 20;
-      const jy = seededRandom(rootData.id, 2) * 10;
-      const cp1x = trunkX + (endX - trunkX) * 0.3 + jx;
-      const cp1y = TRUNK_BASE_Y + (endY - TRUNK_BASE_Y) * 0.5 + jy;
-      const cp2x = trunkX + (endX - trunkX) * 0.7 - jx * 0.5;
-      const cp2y = TRUNK_BASE_Y + (endY - TRUNK_BASE_Y) * 0.8;
-
-      const path = rootsG
-        .append('path')
-        .attr(
-          'd',
-          `M${trunkX},${TRUNK_BASE_Y} C${cp1x},${cp1y} ${cp2x},${cp2y} ${endX},${endY}`,
-        )
-        .attr('fill', 'none')
-        .attr('stroke', '#BBBBBB')
-        .attr('stroke-width', 1.5)
-        .attr('stroke-linecap', 'round')
-        .attr('opacity', 0.5);
-
-      const totalLength = (path.node() as SVGPathElement).getTotalLength();
-      path
-        .attr('stroke-dasharray', totalLength)
-        .attr('stroke-dashoffset', totalLength)
-        .transition()
-        .delay(ROOT_START + i * ROOT_STAGGER)
-        .duration(ROOT_DURATION)
-        .ease(d3.easeCubicOut)
-        .attr('stroke-dashoffset', 0);
-
-      // Small root tip circle
-      const rootCircle = rootsG
-        .append('circle')
-        .attr('cx', endX)
-        .attr('cy', endY)
-        .attr('r', 0)
-        .attr('fill', '#BBBBBB')
-        .attr('opacity', 0.4)
-        .style('cursor', 'pointer')
-        .on('click', (event: MouseEvent) =>
-          handleNodeClick(event, rootData),
-        );
-
-      rootCircle
-        .transition()
-        .delay(ROOT_START + i * ROOT_STAGGER + ROOT_DURATION * 0.6)
-        .duration(300)
-        .attr('r', 3);
-
-      // Root label
-      const rootLabel = rootsG
-        .append('text')
-        .attr('x', endX)
-        .attr('y', endY + 14)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#BBBBBB')
-        .attr('font-size', '8px')
-        .attr('font-family', 'Georgia, serif')
-        .attr('font-style', 'italic')
-        .attr('opacity', 0)
-        .text(rootData.label)
-        .style('cursor', 'pointer')
-        .on('click', (event: MouseEvent) =>
-          handleNodeClick(event, rootData),
-        );
-
-      rootLabel
-        .transition()
-        .delay(ROOT_START + i * ROOT_STAGGER + ROOT_DURATION)
-        .duration(400)
-        .attr('opacity', 0.5);
+      rootAnchors.push({
+        x: endX,
+        y: endY,
+        data: {
+          id: root.id,
+          label: root.label,
+          description: root.description,
+          type: 'root',
+        },
+      });
     });
 
-    // ==================================================================
-    //  Signal growth complete
-    // ==================================================================
-    const totalAnimTime =
-      ROOT_START + rootsData.length * ROOT_STAGGER + ROOT_DURATION + 500;
-    setTimeout(() => {
-      onGrowComplete?.();
-    }, totalAnimTime);
-  }, [tree, onGrowComplete, handleNodeClick]);
+    // ---- Create particles ----
+    const particles: Particle[] = [];
+    const mid = { x: cx, y: h / 2 };
+
+    // Tree shape particles
+    const treeCount = PARTICLE_COUNT - leafTargets.length * 2 - budTargets.length * 2 - rootTargets.length * 3;
+    for (let i = 0; i < treeCount; i++) {
+      const t = treeTargets[Math.floor(Math.random() * treeTargets.length)];
+      const s = scatter(mid.x, mid.y, w, h);
+      particles.push({ ...s, tx: t.x, ty: t.y, size: Math.random() * 1.2 + 0.4, color: pick(TREE_COLORS), opacity: Math.random() * 0.55 + 0.2 });
+    }
+
+    // Leaf particles
+    for (const t of leafTargets) {
+      const s = scatter(mid.x, mid.y, w, h);
+      particles.push({ ...s, tx: t.x, ty: t.y, size: Math.random() * 1.1 + 0.5, color: pick(LEAF_COLORS), opacity: Math.random() * 0.6 + 0.25 });
+    }
+
+    // Bud particles
+    for (const t of budTargets) {
+      const s = scatter(mid.x, mid.y, w, h);
+      particles.push({ ...s, tx: t.x, ty: t.y, size: Math.random() * 1.1 + 0.5, color: pick(BUD_COLORS), opacity: Math.random() * 0.6 + 0.25 });
+    }
+
+    // Root particles
+    for (const t of rootTargets) {
+      const s = scatter(mid.x, mid.y, w, h);
+      particles.push({ ...s, tx: t.x, ty: t.y, size: Math.random() * 1.0 + 0.3, color: pick(ROOT_COLORS), opacity: Math.random() * 0.25 + 0.08 });
+    }
+
+    // ---- Compute annotation layout ----
+    const anns = computeAnnotations(tree, terminals, rootAnchors, cx, w, h);
+    setAnnotations(anns);
+
+    // ---- Animation ----
+    let frame = 0;
+    let settleFrames = 0;
+    let didSettle = false;
+
+    function animate() {
+      if (!ctx) return;
+
+      ctx.fillStyle = bgPattern || '#FFFFFF';
+      ctx.fillRect(0, 0, w, h);
+
+      let totalV = 0;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const dx = p.tx - p.x;
+        const dy = p.ty - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        p.vx += dx * 0.003;
+        p.vy += dy * 0.003;
+        p.vx *= 0.92;
+        p.vy *= 0.92;
+
+        if (dist > 8) {
+          p.vx += (Math.random() - 0.5) * 0.55;
+          p.vy += (Math.random() - 0.5) * 0.55;
+        }
+
+        p.x += p.vx;
+        p.y += p.vy;
+        totalV += Math.abs(p.vx) + Math.abs(p.vy);
+
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.opacity;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+
+      frame++;
+      const avg = totalV / particles.length;
+      if (!didSettle && avg < 0.5 && frame > 120) {
+        settleFrames++;
+        if (settleFrames > 25) {
+          didSettle = true;
+          setSettled(true);
+          onCompleteRef.current?.();
+        }
+      }
+
+      animRef.current = requestAnimationFrame(animate);
+    }
+
+    animate();
+    return () => cancelAnimationFrame(animRef.current);
+  }, [tree]);
+
+  /* ---- Annotation line path ---- */
+  function linePath(ann: Annotation): string {
+    const { treeX, treeY, labelX, labelY } = ann;
+    const lx = ann.side === 'left' ? labelX + 160 : labelX;
+    const ly = labelY + 8;
+    // Horizontal-first bezier
+    const midX = treeX + (lx - treeX) * 0.6;
+    return `M${treeX},${treeY} C${midX},${treeY} ${lx},${ly} ${lx},${ly}`;
+  }
 
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full"
-      style={{ minHeight: '70vh' }}
-    >
-      <svg
-        ref={svgRef}
-        className="w-full h-full"
+    <div ref={containerRef} className="relative w-full" style={{ minHeight: '70vh' }}>
+      <canvas
+        ref={canvasRef}
+        className="w-full"
         style={{ minHeight: '70vh' }}
       />
-      <TreeNode
-        node={selectedNode}
-        position={tooltipPos}
-        onClose={() => setSelectedNode(null)}
-      />
+
+      {/* ---- Always-visible annotations (fade in after settle) ---- */}
+      <AnimatePresence>
+        {settled && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.2, ease: 'easeOut' }}
+            className="absolute inset-0 pointer-events-none"
+          >
+            {/* SVG annotation lines */}
+            <svg
+              className="absolute inset-0"
+              style={{ width: dims.w, height: dims.h }}
+              viewBox={`0 0 ${dims.w} ${dims.h}`}
+            >
+              {annotations.map((ann) => (
+                <g key={ann.data.id}>
+                  {/* Dot on tree */}
+                  <circle
+                    cx={ann.treeX}
+                    cy={ann.treeY}
+                    r={3}
+                    fill={nodeColor(ann.data.type)}
+                    opacity={0.7}
+                  />
+                  {/* Line to label */}
+                  <path
+                    d={linePath(ann)}
+                    fill="none"
+                    stroke={nodeColor(ann.data.type)}
+                    strokeWidth={0.6}
+                    opacity={0.35}
+                  />
+                </g>
+              ))}
+            </svg>
+
+            {/* Labels */}
+            {annotations.map((ann) => (
+              <div
+                key={ann.data.id}
+                className="absolute pointer-events-auto cursor-pointer group"
+                style={{
+                  left: ann.labelX,
+                  top: ann.labelY,
+                  width: 160,
+                  textAlign: ann.side === 'left' ? 'right' : 'left',
+                }}
+                onClick={() => setSelected(selected?.data.id === ann.data.id ? null : ann)}
+              >
+                <span
+                  className="font-ui transition-colors duration-200 group-hover:text-text-primary"
+                  style={{
+                    fontSize: '0.7rem',
+                    color: selected?.data.id === ann.data.id
+                      ? nodeColor(ann.data.type)
+                      : 'var(--text-muted)',
+                    fontWeight: selected?.data.id === ann.data.id ? 600 : 400,
+                  }}
+                >
+                  {ann.data.label}
+                </span>
+                {ann.data.period && (
+                  <span
+                    className="font-ui block"
+                    style={{ fontSize: '0.6rem', color: 'var(--text-muted)', opacity: 0.6 }}
+                  >
+                    {ann.data.period}
+                  </span>
+                )}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ---- Detail panel (click to reveal) ---- */}
+      <AnimatePresence>
+        {selected && (
+          <>
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40"
+              onClick={() => setSelected(null)}
+            />
+            <motion.div
+              key="detail"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.25 }}
+              className="absolute z-50 bg-white px-5 py-4"
+              style={{
+                border: '1px solid var(--border)',
+                borderLeft: `3px solid ${nodeColor(selected.data.type)}`,
+                width: 280,
+                left: selected.side === 'left' ? selected.labelX : selected.labelX - 120,
+                top: selected.labelY + 28,
+              }}
+            >
+              <p className="text-sm font-bold text-text-primary mb-1" style={{ lineHeight: 1.3 }}>
+                {selected.data.label}
+              </p>
+              {selected.data.period && (
+                <p className="font-ui text-text-muted mb-2" style={{ fontSize: '0.7rem' }}>
+                  {selected.data.period}
+                </p>
+              )}
+              <p className="text-sm text-text-secondary leading-[1.5] mb-3">
+                {selected.data.description}
+              </p>
+
+              {/* Leaves list */}
+              {selected.leaves && selected.leaves.length > 0 && (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                  {selected.leaves.map((leaf, i) => (
+                    <div key={i} className="mb-3">
+                      <p className="text-xs text-text-primary leading-[1.4]">
+                        {leaf.content}
+                      </p>
+                      <p
+                        className="text-xs leading-[1.4] mt-0.5"
+                        style={{ color: '#3D5A3D', fontStyle: 'italic' }}
+                      >
+                        {leaf.reflection}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selected.data.type === 'bud' && (
+                <p className="font-ui" style={{ color: '#C17F3A', fontSize: '0.65rem' }}>
+                  Possible future
+                </p>
+              )}
+              {selected.data.type === 'root' && (
+                <p className="font-ui" style={{ color: '#BBBBBB', fontSize: '0.65rem' }}>
+                  Core value
+                </p>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
