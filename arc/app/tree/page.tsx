@@ -94,25 +94,130 @@ export default function TreePage() {
   const displayNarrative = narrative ?? mockNarrative;
 
   const handleExport = () => {
-    // PNG export
     const canvas = document.querySelector('canvas');
-    if (canvas) {
-      const link = document.createElement('a');
-      link.download = 'my-arc.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    }
-
-    // Text export
+    const treeDataUrl = canvas ? canvas.toDataURL('image/png') : '';
     const currentIntention = useArcStore.getState().intention;
-    let textContent = displayNarrative;
-    if (currentIntention) {
-      textContent += '\n\n---\n\nYour intention: "' + currentIntention + '"';
-    }
-    const blob = new Blob([textContent], { type: 'text/plain' });
+    const paragraphs = displayNarrative.split('\n\n').filter(Boolean);
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Arc</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  @page { margin: 40px; }
+  body {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    color: #111111;
+    background: #FFFFFF;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 60px 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 50px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid #E5E5E5;
+  }
+  .header h1 {
+    font-size: 1.8rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: #111111;
+    margin-bottom: 6px;
+  }
+  .header p {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 0.7rem;
+    color: #ADADAD;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .tree-image {
+    text-align: center;
+    margin: 40px 0 50px;
+  }
+  .tree-image img {
+    max-width: 100%;
+    height: auto;
+  }
+  .divider {
+    border: none;
+    border-top: 1px solid #E5E5E5;
+    margin: 40px 0;
+  }
+  .narrative p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: #111111;
+    margin-bottom: 1.4em;
+  }
+  .intention {
+    text-align: center;
+    margin-top: 50px;
+    padding-top: 40px;
+    border-top: 1px solid #E5E5E5;
+  }
+  .intention-label {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 0.65rem;
+    color: #ADADAD;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+  .intention-text {
+    font-size: 1.1rem;
+    font-style: italic;
+    color: #111111;
+    line-height: 1.6;
+  }
+  .footer {
+    text-align: center;
+    margin-top: 60px;
+    padding-top: 30px;
+    border-top: 1px solid #E5E5E5;
+  }
+  .footer p {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 0.65rem;
+    color: #CCCCCC;
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>Your Arc</h1>
+    <p>A reflection</p>
+  </div>
+
+  ${treeDataUrl ? `<div class="tree-image"><img src="${treeDataUrl}" alt="Life tree visualisation" /></div><hr class="divider" />` : ''}
+
+  <div class="narrative">
+    ${paragraphs.map((p: string) => `<p>${p}</p>`).join('\n    ')}
+  </div>
+
+  ${currentIntention ? `
+  <div class="intention">
+    <p class="intention-label">Your intention</p>
+    <p class="intention-text">&ldquo;${currentIntention}&rdquo;</p>
+  </div>` : ''}
+
+  <div class="footer">
+    <p>Made with Arc</p>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.download = 'my-arc.txt';
+    link.download = 'my-arc.html';
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);

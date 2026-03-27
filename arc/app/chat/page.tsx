@@ -41,18 +41,38 @@ export default function ChatPage() {
     setLoading,
   } = useArcStore();
 
-  // Seed Arc's opening question on first mount
+  // Seed Arc's opening question — wait for persist hydration first
   const hasSeeded = useRef(false);
   useEffect(() => {
-    if (messages.length === 0 && !hasSeeded.current) {
-      hasSeeded.current = true;
-      addMessage({
-        id: 'opening',
-        role: 'assistant',
-        content: OPENING_QUESTION,
-        timestamp: Date.now(),
-      });
+    // Subscribe to Zustand persist hydration
+    const unsub = useArcStore.persist.onFinishHydration(() => {
+      const currentMessages = useArcStore.getState().messages;
+      if (currentMessages.length === 0 && !hasSeeded.current) {
+        hasSeeded.current = true;
+        addMessage({
+          id: 'opening',
+          role: 'assistant',
+          content: OPENING_QUESTION,
+          timestamp: Date.now(),
+        });
+      }
+    });
+
+    // If already hydrated (e.g. no sessionStorage data), seed immediately
+    if (useArcStore.persist.hasHydrated()) {
+      const currentMessages = useArcStore.getState().messages;
+      if (currentMessages.length === 0 && !hasSeeded.current) {
+        hasSeeded.current = true;
+        addMessage({
+          id: 'opening',
+          role: 'assistant',
+          content: OPENING_QUESTION,
+          timestamp: Date.now(),
+        });
+      }
     }
+
+    return unsub;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom
