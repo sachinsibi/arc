@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { useArcStore } from '@/lib/store';
 import LifeTree from '@/components/LifeTree';
 import NarrativeReflection from '@/components/NarrativeReflection';
@@ -92,6 +93,31 @@ export default function TreePage() {
   const displayTree = tree ?? mockTree;
   const displayNarrative = narrative ?? mockNarrative;
 
+  const handleExport = () => {
+    // PNG export
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+      const link = document.createElement('a');
+      link.download = 'my-arc.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // Text export
+    const currentIntention = useArcStore.getState().intention;
+    let textContent = displayNarrative;
+    if (currentIntention) {
+      textContent += '\n\n---\n\nYour intention: "' + currentIntention + '"';
+    }
+    const blob = new Blob([textContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'my-arc.txt';
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen py-12">
       {/* Tree */}
@@ -109,6 +135,24 @@ export default function TreePage() {
 
       {/* Narrative */}
       <NarrativeReflection narrative={displayNarrative} visible={treeGrown} />
+
+      {/* Export button */}
+      {treeGrown && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          className="flex justify-center py-12"
+        >
+          <button
+            onClick={handleExport}
+            className="px-6 py-2 border border-accent bg-transparent text-text-primary cursor-pointer transition-all duration-300 ease-in-out hover:bg-accent hover:text-white"
+            style={{ fontFamily: 'Georgia, serif', fontSize: '0.9rem' }}
+          >
+            Save your arc
+          </button>
+        </motion.div>
+      )}
     </div>
   );
 }

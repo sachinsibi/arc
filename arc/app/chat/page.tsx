@@ -15,6 +15,19 @@ function cleanText(text: string): string {
   return text.replace(/\u2014/g, ', ').replace(/\u2013/g, ', ');
 }
 
+const CRISIS_KEYWORDS = [
+  'suicide', 'kill myself', 'self-harm', 'end my life',
+  'want to die', 'hurting myself', 'self harm', 'take my life',
+  'end it all', 'no reason to live',
+];
+
+const CRISIS_RESPONSE = "What you're sharing sounds really important, and I want to make sure you get the support you deserve. Please reach out to someone who can help: the Crisis Text Line (text HOME to 741741) or the 988 Suicide and Crisis Lifeline (call or text 988). You don't have to navigate this alone.";
+
+function containsCrisisKeyword(text: string): boolean {
+  const lower = text.toLowerCase();
+  return CRISIS_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -77,6 +90,12 @@ export default function ChatPage() {
       });
       // Small delay so the message appears before navigating
       setTimeout(() => router.push('/tree'), 600);
+      return;
+    }
+
+    if (containsCrisisKeyword(text)) {
+      addMessage({ id: crypto.randomUUID(), role: 'user', content: text, timestamp: Date.now() });
+      addMessage({ id: crypto.randomUUID(), role: 'assistant', content: CRISIS_RESPONSE, timestamp: Date.now() });
       return;
     }
 
