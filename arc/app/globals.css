@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #FFFFFF;
+  --bg-secondary: #FAFAFA;
+  --text-primary: #111111;
+  --text-secondary: #6B6B6B;
+  --text-muted: #ADADAD;
+  --border: #E5E5E5;
+  --accent: #1A1A1A;
+
+  /* Tree-only colours */
+  --tree-trunk: #2C2C2C;
+  --tree-branch: #555555;
+  --tree-branch-light: #888888;
+  --tree-leaf: #3D5A3D;
+  --tree-bud: #C17F3A;
+  --tree-root: #BBBBBB;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-arc-border: var(--border);
+  --color-accent: var(--accent);
+  --color-tree-trunk: var(--tree-trunk);
+  --color-tree-branch: var(--tree-branch);
+  --color-tree-branch-light: var(--tree-branch-light);
+  --color-tree-leaf: var(--tree-leaf);
+  --color-tree-bud: var(--tree-bud);
+  --color-tree-root: var(--tree-root);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-ui {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.animate-pulse-opacity {
+  animation: pulse-opacity 2s ease-in-out infinite;
+}
