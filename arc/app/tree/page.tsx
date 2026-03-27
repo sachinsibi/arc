@@ -7,6 +7,24 @@ import LifeTree from '@/components/LifeTree';
 import NarrativeReflection from '@/components/NarrativeReflection';
 import { mockTree, mockNarrative } from '@/lib/mock-data';
 
+// Strip em dashes from all string values recursively
+function stripEmDashes(text: string): string {
+  return text.replace(/\u2014/g, ', ').replace(/\u2013/g, ', ');
+}
+
+function cleanTreeData<T>(obj: T): T {
+  if (typeof obj === 'string') return stripEmDashes(obj) as T;
+  if (Array.isArray(obj)) return obj.map(cleanTreeData) as T;
+  if (obj && typeof obj === 'object') {
+    const cleaned: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      cleaned[k] = cleanTreeData(v);
+    }
+    return cleaned as T;
+  }
+  return obj;
+}
+
 export default function TreePage() {
   const router = useRouter();
   const { tree, narrative, setTree, setNarrative, isLoading, setLoading } =
@@ -45,8 +63,8 @@ export default function TreePage() {
         if (!res.ok) throw new Error('Extract failed');
 
         const data = await res.json();
-        setTree(data.tree);
-        setNarrative(data.narrative);
+        setTree(cleanTreeData(data.tree));
+        setNarrative(stripEmDashes(data.narrative));
       } catch {
         // Fallback to mock data for demo
         setTree(mockTree);

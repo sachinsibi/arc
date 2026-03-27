@@ -5,7 +5,7 @@ export const mockTree: LifeTree = {
     {
       id: 'root-1',
       label: 'Curiosity',
-      description: 'A deep, restless need to understand how things work — from taking apart radios as a child to questioning systems as an adult.',
+      description: 'A deep, restless need to understand how things work,from taking apart radios as a child to questioning systems as an adult.',
     },
     {
       id: 'root-2',
@@ -67,7 +67,7 @@ export const mockTree: LifeTree = {
             {
               id: 'leaf-2a1',
               content: 'A professor who said "the question matters more than the answer"',
-              reflection: 'Permission to not have it all figured out — a gift that still resonates.',
+              reflection: 'Permission to not have it all figured out,a gift that still resonates.',
             },
           ],
         },
@@ -96,7 +96,7 @@ export const mockTree: LifeTree = {
         {
           id: 'leaf-3a',
           content: 'Being praised for work that felt meaningless',
-          reflection: 'Success without satisfaction — the gap that would eventually demand attention.',
+          reflection: 'Success without satisfaction,the gap that would eventually demand attention.',
         },
         {
           id: 'leaf-3b',
@@ -135,7 +135,7 @@ export const mockTree: LifeTree = {
     {
       id: 'bud-1',
       label: 'Teaching',
-      description: 'A growing pull towards sharing what you have learned — not as an expert, but as a fellow traveller.',
+      description: 'A growing pull towards sharing what you have learned,not as an expert, but as a fellow traveller.',
     },
     {
       id: 'bud-2',
@@ -145,10 +145,10 @@ export const mockTree: LifeTree = {
   ],
 };
 
-export const mockNarrative = `There is a thread that runs through your story, though it is not always visible from the inside. At fourteen, you were writing songs in your bedroom — not for an audience, but because something inside you needed to be made external. That same impulse showed up again in university, when a philosophy class became the truest thing in your week, and again when you stayed up all night building a website for a friend. The medium changed, but the need did not: to take the raw, unsorted material of experience and give it shape.
+export const mockNarrative = `There is a thread that runs through your story, though it is not always visible from the inside. At fourteen, you were writing songs in your bedroom,not for an audience, but because something inside you needed to be made external. That same impulse showed up again in university, when a philosophy class became the truest thing in your week, and again when you stayed up all night building a website for a friend. The medium changed, but the need did not: to take the raw, unsorted material of experience and give it shape.
 
-The choices that felt like departures — studying something practical, taking the corporate job, stepping away from music — were not departures at all. They were the trunk growing thicker, gathering the strength needed for what came later. The mentor who left, the praise that felt hollow, the late-night restlessness — these were not random. They were the tree telling you which direction to grow.
+The choices that felt like departures,studying something practical, taking the corporate job, stepping away from music,were not departures at all. They were the trunk growing thicker, gathering the strength needed for what came later. The mentor who left, the praise that felt hollow, the late-night restlessness,these were not random. They were the tree telling you which direction to grow.
 
-What you are building now sits at the intersection of everything you have been. The curiosity that took apart radios. The connection you felt when a song landed. The philosophy professor's permission to keep asking. You are not starting over; you are arriving. The buds on your branches — the pull towards teaching, the return to writing — are not new directions. They are the oldest parts of you, finding their way back to the surface.
+What you are building now sits at the intersection of everything you have been. The curiosity that took apart radios. The connection you felt when a song landed. The philosophy professor's permission to keep asking. You are not starting over; you are arriving. The buds on your branches,the pull towards teaching, the return to writing,are not new directions. They are the oldest parts of you, finding their way back to the surface.
 
 This is one way to read your arc. You might see it differently. The story is yours to tell.`;

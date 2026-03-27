@@ -10,6 +10,11 @@ import ChatInput from '@/components/ChatInput';
 const OPENING_QUESTION =
   'Think back to when you were around 14 or 15. What did you spend your time on, not because anyone told you to, but because you genuinely wanted to?';
 
+// Strip em dashes from AI responses
+function cleanText(text: string): string {
+  return text.replace(/\u2014/g, ', ').replace(/\u2013/g, ', ');
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -112,11 +117,11 @@ export default function ChatPage() {
         const { done, value } = await reader.read();
         if (done) break;
         assistantContent += decoder.decode(value, { stream: true });
-        updateLastMessage(assistantContent);
+        updateLastMessage(cleanText(assistantContent));
       }
       // Flush any remaining bytes
       assistantContent += decoder.decode();
-      updateLastMessage(assistantContent);
+      updateLastMessage(cleanText(assistantContent));
     } catch (err) {
       console.error('Chat error:', err);
       // If API is unavailable, show a fallback message
