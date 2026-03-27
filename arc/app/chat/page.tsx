@@ -111,10 +111,14 @@ export default function ChatPage() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        assistantContent += decoder.decode(value);
+        assistantContent += decoder.decode(value, { stream: true });
         updateLastMessage(assistantContent);
       }
-    } catch {
+      // Flush any remaining bytes
+      assistantContent += decoder.decode();
+      updateLastMessage(assistantContent);
+    } catch (err) {
+      console.error('Chat error:', err);
       // If API is unavailable, show a fallback message
       addMessage({
         id: crypto.randomUUID(),
