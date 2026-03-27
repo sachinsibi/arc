@@ -7,6 +7,7 @@ import { useArcStore } from '@/lib/store';
 import LifeTree from '@/components/LifeTree';
 import NarrativeReflection from '@/components/NarrativeReflection';
 import { mockTree, mockNarrative } from '@/lib/mock-data';
+import { startAmbient, stopAmbient, isAmbientPlaying } from '@/lib/ambient';
 
 // Strip em dashes from all string values recursively
 function stripEmDashes(text: string): string {
@@ -32,7 +33,26 @@ export default function TreePage() {
     useArcStore();
   const [treeGrown, setTreeGrown] = useState(false);
   const [error, setError] = useState(false);
+  const [muted, setMuted] = useState(false);
   const hasFetched = useRef(false);
+
+  // Start ambient audio when tree data is ready, stop on unmount
+  useEffect(() => {
+    if (tree && !muted) {
+      startAmbient();
+    }
+    return () => stopAmbient();
+  }, [tree, muted]);
+
+  const toggleMute = () => {
+    if (isAmbientPlaying()) {
+      stopAmbient();
+      setMuted(true);
+    } else {
+      startAmbient();
+      setMuted(false);
+    }
+  };
 
   useEffect(() => {
     if (hasFetched.current) return;
@@ -224,7 +244,31 @@ export default function TreePage() {
   };
 
   return (
-    <div className="min-h-screen py-12">
+    <div className="min-h-screen py-12 relative">
+      {/* Mute toggle — fixed bottom-right */}
+      {tree && (
+        <button
+          onClick={toggleMute}
+          className="fixed bottom-6 right-6 z-30 font-ui text-text-muted hover:text-text-primary transition-colors duration-300"
+          style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}
+          aria-label={muted ? 'Unmute ambient audio' : 'Mute ambient audio'}
+        >
+          {muted ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 5L6 9H2v6h4l5 4V5z" />
+              <line x1="23" y1="9" x2="17" y2="15" />
+              <line x1="17" y1="9" x2="23" y2="15" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 5L6 9H2v6h4l5 4V5z" />
+              <path d="M19.07 4.93a10 10 0 010 14.14" />
+              <path d="M15.54 8.46a5 5 0 010 7.07" />
+            </svg>
+          )}
+        </button>
+      )}
+
       {/* Tree */}
       <div className="mx-auto" style={{ maxWidth: '900px' }}>
         <LifeTree tree={displayTree} onGrowComplete={() => setTreeGrown(true)} />
