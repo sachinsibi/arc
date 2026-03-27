@@ -178,18 +178,8 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Progress indicator */}
-      <div className="flex justify-center pt-6 pb-2">
-        <span
-          className="font-ui text-text-muted"
-          style={{ fontSize: '0.75rem' }}
-        >
-          {exchangeCount} of ~10
-        </span>
-      </div>
-
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6">
+      <div className="flex-1 overflow-y-auto px-6 pt-8">
         <div className="flex flex-col mx-auto w-full" style={{ maxWidth: '680px' }}>
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
@@ -198,13 +188,21 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Input area */}
+      {/* Input area + progress */}
       <div
-        className="px-6 py-5"
+        className="px-6 py-4"
         style={{ borderTop: '1px solid var(--border)' }}
       >
         <div className="mx-auto w-full" style={{ maxWidth: '680px' }}>
           <ChatInput onSend={handleSend} disabled={isLoading} />
+          <div className="flex justify-end mt-2">
+            <span
+              className="font-ui text-text-muted"
+              style={{ fontSize: '0.65rem' }}
+            >
+              {exchangeCount} of ~10
+            </span>
+          </div>
         </div>
       </div>
     </div>
