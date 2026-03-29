@@ -376,7 +376,6 @@ function executeStep(ctx: CanvasRenderingContext2D, step: DrawStep) {
 export default function LifeTree({ tree, onGrowComplete }: LifeTreeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hasStarted = useRef(false);
   const onCompleteRef = useRef(onGrowComplete);
   onCompleteRef.current = onGrowComplete;
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -385,9 +384,6 @@ export default function LifeTree({ tree, onGrowComplete }: LifeTreeProps) {
   const [dims, setDims] = useState({ w: 900, h: 700 });
 
   useEffect(() => {
-    if (hasStarted.current) return;
-    hasStarted.current = true;
-
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
@@ -405,13 +401,14 @@ export default function LifeTree({ tree, onGrowComplete }: LifeTreeProps) {
     ctx.scale(dpr, dpr);
     setDims({ w, h });
 
-    // White background
-    ctx.fillStyle = '#FFFFFF';
+    // Match page background
+    ctx.fillStyle = '#FAF7F2';
     ctx.fillRect(0, 0, w, h);
 
     // Build all drawing steps
     const { steps, annotations: anns } = buildTreeSteps(tree, w, h);
     setAnnotations(anns);
+    setReady(false);
 
     // Play steps back over time
     const startTime = performance.now();

@@ -36,47 +36,59 @@ export default function TreePage() {
 
   useEffect(() => {
     if (hasFetched.current) return;
-    hasFetched.current = true;
 
-    // Read messages directly from store to avoid stale closure
-    const currentMessages = useArcStore.getState().messages;
+    // Wait for persist hydration before reading store
+    const run = () => {
+      if (hasFetched.current) return;
+      hasFetched.current = true;
 
-    // If no conversation happened, redirect to landing
-    if (currentMessages.length === 0) {
-      // Use mock data so the tree page is always testable
-      setTree(mockTree);
-      setNarrative(mockNarrative);
-      return;
-    }
+      const state = useArcStore.getState();
+      const currentMessages = state.messages;
 
-    // If tree is already loaded, skip fetch
-    if (tree && narrative) return;
+      // If tree is already loaded, skip fetch
+      if (state.tree && state.narrative) return;
 
-    async function fetchTreeData() {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/extract', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: currentMessages }),
-        });
-
-        if (!res.ok) throw new Error('Extract failed');
-
-        const data = await res.json();
-        setTree(cleanTreeData(data.tree));
-        setNarrative(stripEmDashes(data.narrative));
-      } catch {
-        // Fallback to mock data for demo
+      // If no conversation happened, use mock data
+      if (currentMessages.length === 0) {
         setTree(mockTree);
         setNarrative(mockNarrative);
-        setError(true);
-      } finally {
-        setLoading(false);
+        return;
       }
-    }
 
-    fetchTreeData();
+      async function fetchTreeData() {
+        setLoading(true);
+        try {
+          const res = await fetch('/api/extract', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: currentMessages }),
+          });
+
+          if (!res.ok) throw new Error('Extract failed');
+
+          const data = await res.json();
+          setTree(cleanTreeData(data.tree));
+          setNarrative(stripEmDashes(data.narrative));
+        } catch {
+          setTree(mockTree);
+          setNarrative(mockNarrative);
+          setError(true);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      fetchTreeData();
+    };
+
+    if (useArcStore.persist.hasHydrated()) {
+      run();
+    } else {
+      const unsub = useArcStore.persist.onFinishHydration(() => {
+        run();
+        unsub();
+      });
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Loading state
@@ -104,14 +116,14 @@ export default function TreePage() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Arc</title>
+<title>My Clearing</title>
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
   @page { margin: 40px; }
   body {
     font-family: Georgia, 'Times New Roman', Times, serif;
     color: #111111;
-    background: #FFFFFF;
+    background: #FAF7F2;
     max-width: 760px;
     margin: 0 auto;
     padding: 60px 40px;
@@ -192,7 +204,7 @@ export default function TreePage() {
 </head>
 <body>
   <div class="header">
-    <h1>Your Arc</h1>
+    <h1>Your Clearing</h1>
     <p>A reflection</p>
   </div>
 
@@ -209,7 +221,7 @@ export default function TreePage() {
   </div>` : ''}
 
   <div class="footer">
-    <p>Made with Arc</p>
+    <p>Planted in the Clearing &bull; ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
   </div>
 </body>
 </html>`;
@@ -217,7 +229,7 @@ export default function TreePage() {
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.download = 'my-arc.html';
+    link.download = 'my-clearing.html';
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);
@@ -241,20 +253,27 @@ export default function TreePage() {
       {/* Narrative */}
       <NarrativeReflection narrative={displayNarrative} visible={treeGrown} />
 
-      {/* Export button */}
+      {/* Export buttons */}
       {treeGrown && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="flex justify-center py-12"
+          className="flex items-center justify-center gap-6 py-12"
         >
           <button
             onClick={handleExport}
             className="px-6 py-2 border border-accent bg-transparent text-text-primary cursor-pointer transition-all duration-300 ease-in-out hover:bg-accent hover:text-white"
             style={{ fontFamily: 'Georgia, serif', fontSize: '0.9rem' }}
           >
-            Save your arc
+            Save your clearing
+          </button>
+          <button
+            onClick={() => window.open('https://buy.stripe.com/test_placeholder', '_blank')}
+            className="font-ui text-text-muted hover:text-text-primary cursor-pointer transition-colors duration-300"
+            style={{ fontSize: '0.75rem', background: 'none', border: 'none' }}
+          >
+            Order an Archival Print ($15)
           </button>
         </motion.div>
       )}

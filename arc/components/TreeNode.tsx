@@ -35,9 +35,12 @@ export default function TreeNode({ node, position, onClose }: TreeNodeProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
             transition={{ duration: 0.2 }}
-            className="fixed z-50 bg-white px-5 py-4"
+            className="fixed z-50 px-5 py-4"
             style={{
+              background: 'var(--bg-secondary)',
               border: '1px solid var(--border)',
+              boxShadow: '2px 4px 12px rgba(0,0,0,0.05)',
+              transform: 'rotate(-1deg)',
               maxWidth: '280px',
               left: `${Math.min(position.x, window.innerWidth - 300)}px`,
               top: `${Math.min(position.y + 12, window.innerHeight - 200)}px`,

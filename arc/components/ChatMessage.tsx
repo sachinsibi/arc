@@ -19,7 +19,10 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     >
       <p
         className="leading-[1.6] text-base whitespace-pre-wrap"
-        style={{ color: isArc ? 'var(--text-secondary)' : 'var(--text-primary)' }}
+        style={{
+          color: isArc ? 'var(--text-secondary)' : 'var(--text-primary)',
+          textTransform: isArc ? 'lowercase' : undefined,
+        }}
       >
         {message.content}
       </p>

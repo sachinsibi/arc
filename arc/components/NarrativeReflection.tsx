@@ -11,14 +11,20 @@ interface NarrativeReflectionProps {
 
 export default function NarrativeReflection({ narrative, visible }: NarrativeReflectionProps) {
   const paragraphs = narrative.split('\n\n').filter(Boolean);
-  const { intention, setIntention } = useArcStore();
+  const { intention, setIntention, feedbackGiven, setFeedbackGiven } = useArcStore();
   const [inputValue, setInputValue] = useState('');
+  const [feedbackResponse, setFeedbackResponse] = useState<string | null>(null);
 
   const handleSave = () => {
     const trimmed = inputValue.trim();
     if (trimmed) {
       setIntention(trimmed);
     }
+  };
+
+  const handleFeedback = (helpful: boolean) => {
+    setFeedbackGiven(true);
+    setFeedbackResponse(helpful ? 'thank you' : 'thank you');
   };
 
   return (
@@ -61,6 +67,45 @@ export default function NarrativeReflection({ narrative, visible }: NarrativeRef
             >
               &ldquo;{intention}&rdquo;
             </p>
+
+            {/* Feedback prompt */}
+            {!feedbackGiven && !feedbackResponse && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.6 }}
+                className="mt-8"
+              >
+                <p className="font-ui text-text-muted" style={{ fontSize: '0.75rem' }}>
+                  did this reflection help you see things differently?{' '}
+                  <button
+                    onClick={() => handleFeedback(true)}
+                    className="text-text-secondary hover:text-text-primary transition-colors duration-200 cursor-pointer"
+                    style={{ background: 'none', border: 'none', fontFamily: 'inherit', fontSize: 'inherit' }}
+                  >
+                    [yes]
+                  </button>{' '}
+                  <button
+                    onClick={() => handleFeedback(false)}
+                    className="text-text-secondary hover:text-text-primary transition-colors duration-200 cursor-pointer"
+                    style={{ background: 'none', border: 'none', fontFamily: 'inherit', fontSize: 'inherit' }}
+                  >
+                    [no]
+                  </button>
+                </p>
+              </motion.div>
+            )}
+            {feedbackResponse && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className="mt-8 font-ui text-text-muted"
+                style={{ fontSize: '0.75rem' }}
+              >
+                {feedbackResponse}
+              </motion.p>
+            )}
           </div>
         ) : (
           <div className="text-center">

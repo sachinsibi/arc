@@ -59,7 +59,7 @@ export default function ChatPage() {
       }
     });
 
-    // If already hydrated (e.g. no sessionStorage data), seed immediately
+    // If already hydrated (e.g. no localStorage data), seed immediately
     if (useArcStore.persist.hasHydrated()) {
       const currentMessages = useArcStore.getState().messages;
       if (currentMessages.length === 0 && !hasSeeded.current) {

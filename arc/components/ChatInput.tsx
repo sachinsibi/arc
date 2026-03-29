@@ -25,9 +25,8 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         disabled={disabled}
-        placeholder="Type your response..."
-        className="flex-1 bg-transparent border-0 border-b border-arc-border outline-none py-2 text-base text-text-primary placeholder:text-text-muted"
-        style={{ fontFamily: 'Georgia, serif' }}
+        placeholder="type your reflection here..."
+        className="flex-1 bg-transparent border-0 border-b border-arc-border outline-none py-2 text-base text-text-primary placeholder:text-text-muted font-ui"
       />
       <button
         type="submit"
